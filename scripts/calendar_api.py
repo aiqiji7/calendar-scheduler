@@ -111,16 +111,18 @@ class CalendarAPI:
         - end_time: 结束时间筛选
         - max_results: 最大返回数
         """
-        endpoint = f"/me/calendars/{self._resolve_calendar_id(calendar_id)}/events"
-
         params = []
         if start_time and end_time:
+            # calendarView 端点支持 startDateTime/endDateTime 范围查询
+            endpoint = f"/me/calendars/{self._resolve_calendar_id(calendar_id)}/calendarView"
             start_str = start_time.strftime("%Y-%m-%dT%H:%M:%S")
             end_str = end_time.strftime("%Y-%m-%dT%H:%M:%S")
             params.append(f"startDateTime={start_str}")
             params.append(f"endDateTime={end_str}")
+        else:
+            endpoint = f"/me/calendars/{self._resolve_calendar_id(calendar_id)}/events"
 
-        params.append(f"top={max_results}")
+        params.append(f"$top={max_results}")
 
         if params:
             endpoint += "?" + "&".join(params)

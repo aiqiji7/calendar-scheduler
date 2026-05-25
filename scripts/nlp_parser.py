@@ -109,55 +109,39 @@ class NLPParser:
 
     def _extract_title(self, text: str) -> str:
         """提取事件标题"""
-        # 移除时间、地点、参会者等部分，保留核心动词+名词
         patterns_to_remove = [
-            r'(\d{1,2}[点:：][^\s]*)?',
-            r'(明天|后天|下周|周一|周二|周三|周四|周五|周六|周日)',
+            r'\d{1,2}[点:：]\d{0,2}\s*(?:至|到|-|～)\s*\d{1,2}[点:：]\d{0,2}',  # 时间范围
+            r'\d{1,2}[点:：]\d{0,2}',  # 单一时间
+            r'(今天|明天|后天|大后天)',
+            r'(下个?|这|本)\s*(周|星期|礼拜)\s*[一二三四五六日天]?',
+            r'(周一|周二|周三|周四|周五|周六|周日|星期[一二三四五六日天])',
+            r'(上午|早上|下午|晚上|傍晚|中午)',
             r'在\w+(?:会议室|室|点)?',
             r'请\w+参加',
-            r'@\w+'
+            r'@\w+',
+            r'\s+',  # 多余空白
         ]
 
         title = text
         for pattern in patterns_to_remove:
-            title = re.sub(pattern, '', title, flags=re.IGNORECASE)
+            title = re.sub(pattern, ' ', title, flags=re.IGNORECASE)
 
         return title.strip()[:100] or "未命名事件"
 
     def _parse_datetime(self, text: str) -> tuple[Optional[datetime], Optional[datetime]]:
         """解析日期时间"""
-        # 使用 dateparser 解析绝对时间
         settings = {
             'TIMEZONE': self.user_timezone_name,
             'RETURN_AS_TIMEZONE_AWARE': True,
             'PREFER_DATES_FROM': 'future'
         }
 
-        # 查找时间范围
-        range_match = re.search(r'(\d{1,2}[点:：]\d{2})\s*(?:至|到|-|～)\s*(\d{1,2}[点:：]\d{2})', text)
-        if range_match:
-            start_str = range_match.group(1)
-            end_str = range_match.group(2)
-            start = dateparser.parse(start_str, settings=settings)
-            end = dateparser.parse(end_str, settings=settings)
-            if start and end:
-                if end < start:
-                    end += timedelta(days=1)
-                return start, end
-
-        # 单一时间 + 时长
-        single_match = re.search(r'(\d{1,2}[点:：]\d{2})', text)
-        if single_match:
-            start = dateparser.parse(single_match.group(1), settings=settings)
-            if start:
-                return start, None
-
-        # 相对日期 + 默认时间
+        # 1. 先检测相对日期（明天、后天、下周五等）
+        target_date = None
+        today = datetime.now(tz=self.user_timezone).date()
         for rel, offset in self.DATE_RELATIVE.items():
             if rel in text:
-                today = datetime.now(tz=self.user_timezone).date()
                 if offset == 'this_week':
-                    # 本周内,需要进一步解析具体日期
                     continue
                 elif offset == 'next_week':
                     target_date = today + timedelta(days=7)
@@ -169,29 +153,63 @@ class NLPParser:
                     target_weekday = weekday_map[offset]
                     days_ahead = (target_weekday - today.weekday()) % 7
                     if days_ahead == 0:
-                        days_ahead = 7  # 下周
+                        days_ahead = 7
                     target_date = today + timedelta(days=days_ahead)
-                else:
-                    continue
+                break
 
-                # 检查是否有具体时间
-                time_match = re.search(r'(\d{1,2})[:：](\d{2})', text)
-                if time_match:
-                    hour, minute = map(int, time_match.groups())
-                    start = datetime.combine(target_date, time(hour, minute), tzinfo=self.user_timezone)
-                else:
-                    # 默认工作时间 9:00 或 14:00
-                    hour = 9 if '上午' in text or '早上' in text else 14
-                    start = datetime.combine(target_date, time(hour, 0), tzinfo=self.user_timezone)
+        # 2. 检测时段前缀
+        period_prefix = ''
+        for p in ['下午', '晚上', '傍晚', '上午', '早上']:
+            if p in text:
+                period_prefix = p
+                break
 
-                return start, None
+        # 3. 查找时间范围（"3点到4点"、"15:00-16:00"）
+        range_match = re.search(r'(\d{1,2}[点:：]\d{0,2})\s*(?:至|到|-|～)\s*(\d{1,2}[点:：]\d{0,2})', text)
+        if range_match:
+            start_h, start_m = self._parse_time_str(range_match.group(1), period_prefix)
+            end_h, end_m = self._parse_time_str(range_match.group(2), period_prefix)
+            base_date = target_date or today
+            start = datetime.combine(base_date, time(start_h, start_m), tzinfo=self.user_timezone)
+            end = datetime.combine(base_date, time(end_h, end_m), tzinfo=self.user_timezone)
+            if end < start:
+                end += timedelta(days=1)
+            return start, end
 
-        # 尝试通用日期解析
+        # 4. 单一时间（"3点"、"15:00"）
+        single_match = re.search(r'(\d{1,2}[点:：]\d{0,2})', text)
+        if single_match:
+            h, m = self._parse_time_str(single_match.group(1), period_prefix)
+            base_date = target_date or today
+            start = datetime.combine(base_date, time(h, m), tzinfo=self.user_timezone)
+            return start, None
+
+        # 5. 只有相对日期，无具体时间
+        if target_date:
+            hour = 9 if period_prefix in ('上午', '早上') else 14
+            start = datetime.combine(target_date, time(hour, 0), tzinfo=self.user_timezone)
+            return start, None
+
+        # 6. 尝试通用解析
         parsed = dateparser.parse(text, settings=settings)
         if parsed:
             return parsed, None
 
         return None, None
+
+    def _parse_time_str(self, time_str: str, period_prefix: str = '') -> tuple[int, int]:
+        """解析时间字符串为 (hour, minute)，处理时段前缀"""
+        time_str = time_str.replace('点', ':').rstrip(':')
+        if ':' in time_str:
+            parts = time_str.split(':')
+            h, m = int(parts[0]), int(parts[1]) if len(parts) > 1 and parts[1] else 0
+        else:
+            h, m = int(time_str), 0
+
+        # 下午/晚上时段，小时 < 12 则 +12
+        if period_prefix in ('下午', '晚上', '傍晚') and h < 12:
+            h += 12
+        return h, m
 
     def _extract_duration(self, text: str) -> Optional[int]:
         """提取时长(分钟)"""
