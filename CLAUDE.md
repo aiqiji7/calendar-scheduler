@@ -10,7 +10,7 @@ Outlook Calendar Scheduler 是一个通过 Microsoft Graph API 管理 Outlook �
 ### 环境设置
 ```bash
 # 安装依赖
-pip install -r requirements.txt
+uv sync
 
 # 配置环境变量（必需）
 export AZURE_CLIENT_ID="your-client-id"
@@ -22,26 +22,26 @@ export REDIRECT_URI="http://localhost:8000/auth/microsoft/callback"
 ### 运行程序
 ```bash
 # 首次认证（必须在其他命令前执行）
-python scripts/main.py auth
+uv run python scripts/main.py auth
 
 # 列出所有日历
-python scripts/main.py list-calendars
+uv run python scripts/main.py list-calendars
 
 # 查询事件
-python scripts/main.py list-events --start 2025-04-21 --end 2025-04-28
+uv run python scripts/main.py list-events --start 2025-04-21 --end 2025-04-28
 
 # 创建事件（直接写入）
-python scripts/main.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
-python scripts/main.py create-event --text "明天下午2点开会"
+uv run python scripts/main.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
+uv run python scripts/main.py create-event --text "明天下午2点开会"
 
 # 智能排程
-python scripts/main.py suggest "项目评审会" --duration 120 --deadline friday
+uv run python scripts/main.py suggest "项目评审会" --duration 120 --deadline friday
 
 # 删除事件
-python scripts/main.py delete-event <event-id>
+uv run python scripts/main.py delete-event <event-id>
 
 # 查看状态
-python scripts/main.py status
+uv run python scripts/main.py status
 ```
 
 ### Python 直接调用

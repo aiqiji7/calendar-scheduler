@@ -1,0 +1,13 @@
+[project]
+name = "outlook-calendar-scheduler"
+version = "1.0.0"
+description = "Outlook Calendar Scheduler - Microsoft Graph API calendar management"
+requires-python = ">=3.10"
+dependencies = [
+    "msal==1.28.0",
+    "requests==2.31.0",
+    "python-dateutil==2.9.0.post0",
+    "pytz==2024.1",
+    "python-dotenv==1.0.0",
+    "dateparser==1.2.0",
+]

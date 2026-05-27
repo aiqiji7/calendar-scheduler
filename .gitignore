@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.venv/
 
 # Outlook Calendar Scheduler 配置文件（包含敏感令牌和用户数据）
 .outlook_calendar_token_cache.json

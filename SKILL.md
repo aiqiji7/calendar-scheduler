@@ -55,41 +55,41 @@ REDIRECT_URI="http://localhost:8000/auth/microsoft/callback"
 
 **认证(首次使用必需):**
 ```bash
-python scripts/main.py auth
+uv run python scripts/main.py auth
 ```
 
 **列出所有日历:**
 ```bash
-python scripts/main.py list-calendars
+uv run python scripts/main.py list-calendars
 ```
 
 **查询事件:**
 ```bash
-python scripts/main.py list-events --start 2025-04-21 --end 2025-04-28
+uv run python scripts/main.py list-events --start 2025-04-21 --end 2025-04-28
 ```
 
 **直接创建事件:**
 ```bash
 # 方式1: 直接指定时间
-python scripts/main.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
+uv run python scripts/main.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
 
 # 方式2: 自然语言描述
-python scripts/main.py create-event --text "明天下午2点开会"
+uv run python scripts/main.py create-event --text "明天下午2点开会"
 ```
 
 **智能排程未来事件:**
 ```bash
-python scripts/main.py suggest "项目评审会" --duration 120 --days 7 --num 3
+uv run python scripts/main.py suggest "项目评审会" --duration 120 --days 7 --num 3
 ```
 
 **删除事件:**
 ```bash
-python scripts/main.py delete-event <event-id>
+uv run python scripts/main.py delete-event <event-id>
 ```
 
 **查看偏好状态:**
 ```bash
-python scripts/main.py status
+uv run python scripts/main.py status
 ```
 
 ## Core Capabilities
