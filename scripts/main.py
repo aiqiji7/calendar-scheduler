@@ -41,7 +41,7 @@ from typing import Dict, Optional
 # 现在可以正常导入同级模块
 from auth import get_auth_manager
 from calendar_api import get_calendar_client
-from nlp_parser import parse_event
+from nlp_parser import apply_completed_title_if_needed, parse_event
 from scheduler import get_scheduler
 from preference_learner import get_learner
 
@@ -221,6 +221,8 @@ def cmd_list_events(args):
 
 def cmd_create_event(args):
     """直接创建事件"""
+    is_completed = False
+    raw_text = None
     if args.text:
         parsed = parse_event(args.text)
         # 验证解析结果，确保时间信息有效
@@ -237,6 +239,8 @@ def cmd_create_event(args):
         else:
             end = parsed["end"]
         title = parsed.get("title") or args.title or "未命名事件"
+        is_completed = bool(parsed.get("is_completed"))
+        raw_text = args.text
     else:
         # 验证命令行参数
         if not args.start or not args.end:
@@ -256,6 +260,15 @@ def cmd_create_event(args):
             sys.exit(1)
         title = args.title
 
+    # 已完成/已发生事件：标题末尾追加 [已完成]
+    title = apply_completed_title_if_needed(
+        title,
+        is_completed=is_completed,
+        start=start,
+        end=end,
+        raw_text=raw_text,
+    )
+
     client = get_calendar_client()
     try:
         event = client.create_event(
@@ -266,10 +279,14 @@ def cmd_create_event(args):
             body=args.body
         )
         print(f"事件创建成功! ID: {event['id']}")
+        print(f"  标题: {title}")
         # 显示创建的事件时间（本地时间）
         start_str = start.strftime("%Y-%m-%d %H:%M") if hasattr(start, 'strftime') else str(start)
         end_str = end.strftime("%Y-%m-%d %H:%M") if hasattr(end, 'strftime') else str(end)
         print(f"  时间: {start_str} - {end_str}")
+        if title.endswith("[已完成]"):
+            print("  状态: 已完成")
+
     except Exception as e:
         print(f"创建事件失败: {e}")
         sys.exit(1)

@@ -10,6 +10,7 @@ description: 通过 Microsoft Graph API 管理 Outlook 日历日程。支持 OAu
 本技能实现与 Outlook Calendar 的集成，核心能力：
 - **认证授权**：基于 OAuth2 授权码模式获取 Graph API 访问令牌
 - **日历操作**：查看、创建、更新、删除用户日历事件
+- **已完成事件标记**：识别已完成/已发生事件，写入时在标题末尾追加 `[已完成]`
 - **智能排程**：根据用户输入的未来事件，对比日历现有安排，推荐最佳时间段
 - **多时区支持**：自动处理时区转换和夏令时
 - **偏好学习**：记录用户工作时间、会议偏好、缓冲时间等规则
@@ -38,6 +39,10 @@ graph TD
 
 ## Quick Start
 
+### Portable Execution
+
+Use `python run_outlook_calendar.py ...` from the skill root. The launcher locates `scripts/main.py` relative to its own file and runs with `cwd` set to the skill root, so it does not depend on a hardcoded user path. It checks `UV_BIN`, then non-interactive `PATH`, then common `uv` install locations. Set `OUTLOOK_CALENDAR_NO_UV=1` to force the cached-venv fallback. Set `OUTLOOK_CALENDAR_CACHE` to override the fallback venv cache directory. The self-test command `python run_outlook_calendar.py --launcher-self-test` performs no authentication or Microsoft Graph API calls.
+
 ### 1. 配置认证
 
 在 Azure Portal 注册应用,获取以下信息并设置为环境变量(写入 `.env` 文件):
@@ -55,41 +60,41 @@ REDIRECT_URI="http://localhost:8000/auth/microsoft/callback"
 
 **认证(首次使用必需):**
 ```bash
-uv run python scripts/main.py auth
+python run_outlook_calendar.py auth
 ```
 
 **列出所有日历:**
 ```bash
-uv run python scripts/main.py list-calendars
+python run_outlook_calendar.py list-calendars
 ```
 
 **查询事件:**
 ```bash
-uv run python scripts/main.py list-events --start 2025-04-21 --end 2025-04-28
+python run_outlook_calendar.py list-events --start 2025-04-21 --end 2025-04-28
 ```
 
 **直接创建事件:**
 ```bash
 # 方式1: 直接指定时间
-uv run python scripts/main.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
+python run_outlook_calendar.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
 
 # 方式2: 自然语言描述
-uv run python scripts/main.py create-event --text "明天下午2点开会"
+python run_outlook_calendar.py create-event --text "明天下午2点开会"
 ```
 
 **智能排程未来事件:**
 ```bash
-uv run python scripts/main.py suggest "项目评审会" --duration 120 --days 7 --num 3
+python run_outlook_calendar.py suggest "项目评审会" --duration 120 --days 7 --num 3
 ```
 
 **删除事件:**
 ```bash
-uv run python scripts/main.py delete-event <event-id>
+python run_outlook_calendar.py delete-event <event-id>
 ```
 
 **查看偏好状态:**
 ```bash
-uv run python scripts/main.py status
+python run_outlook_calendar.py status
 ```
 
 ## Core Capabilities
@@ -181,7 +186,8 @@ parse_event(text: str) -> dict:
         "duration_minutes": int,
         "location": str | None,
         "attendees": list[str] | None,
-        "constraints": dict | None  # 如"本周内"、"工作时间"
+        "constraints": dict | None,  # 如"本周内"、"工作时间"
+        "is_completed": bool         # 是否已完成/已发生事件
     }
     """
 ```
@@ -190,6 +196,12 @@ parse_event(text: str) -> dict:
 - "明天下午2点到3点开会"
 - "下周一上午10点,1小时,项目讨论"
 - "本周找个2小时的时间做评审(优先上午)"
+- "今天下午3点开会已经完成" → `is_completed=True`，写入标题为 `开会[已完成]`
+
+**已完成事件标题规则**（`create-event` 写入时自动生效）:
+1. 自然语言含完成标记：`已完成` / `完成了` / `做完了` / `done` / `finished` 等
+2. 事件结束时间（无 end 则看 start）早于当前时间
+3. 命中后标题末尾追加 `[已完成]`，已有该后缀则不重复
 
 ### 5. Preference Learning (scripts/preference_learner.py)
 

@@ -12,6 +12,99 @@ import dateparser
 from dateutil import tz
 
 
+COMPLETED_TITLE_SUFFIX = "[已完成]"
+
+# 显式表示“事件已完成/已发生”的自然语言标记
+COMPLETED_TEXT_PATTERNS = [
+    r"已完成",
+    r"完成了",
+    r"做完了",
+    r"已经完成",
+    r"已经做完",
+    r"搞定了",
+    r"搞完了",
+    r"办完了",
+    r"结束了",
+    r"已经结束",
+    r"\bdone\b",
+    r"\bfinished\b",
+    r"\bcompleted\b",
+]
+
+
+def is_completed_text(text: str) -> bool:
+    """根据自然语言判断用户是否在描述已完成事件。"""
+    if not text:
+        return False
+    for pattern in COMPLETED_TEXT_PATTERNS:
+        if re.search(pattern, text, flags=re.IGNORECASE):
+            return True
+    return False
+
+
+def is_past_event(
+    start: Optional[datetime],
+    end: Optional[datetime] = None,
+    *,
+    now: Optional[datetime] = None,
+    user_timezone: str = "Asia/Shanghai",
+) -> bool:
+    """
+    判断事件是否已结束（已发生）。
+
+    以 end 为准；若无 end，则用 start。无时间信息时返回 False。
+    """
+    ref = end or start
+    if ref is None:
+        return False
+
+    tzinfo = tz.gettz(user_timezone)
+    if now is None:
+        now = datetime.now(tz=tzinfo)
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=tzinfo)
+
+    if ref.tzinfo is None:
+        ref = ref.replace(tzinfo=tzinfo)
+
+    return ref < now
+
+
+def mark_completed_title(title: str) -> str:
+    """在标题末尾追加 [已完成]，避免重复追加。"""
+    cleaned = (title or "").strip() or "未命名事件"
+    # 兼容旧前缀 [已完成] / 旧后缀 [完成]，统一迁移为后缀 [已完成]
+    cleaned = re.sub(r"^\[已完成\]\s*", "", cleaned).strip() or "未命名事件"
+    cleaned = re.sub(r"\s*\[完成\]\s*$", "", cleaned).strip() or "未命名事件"
+    cleaned = re.sub(r"\s*\[已完成\]\s*$", "", cleaned).strip() or "未命名事件"
+    return f"{cleaned}{COMPLETED_TITLE_SUFFIX}"
+
+
+def apply_completed_title_if_needed(
+    title: str,
+    *,
+    is_completed: bool = False,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    raw_text: Optional[str] = None,
+    user_timezone: str = "Asia/Shanghai",
+) -> str:
+    """
+    若判定为已完成事件，则在标题末尾追加 [已完成]。
+
+    判定顺序:
+    1. 显式 is_completed=True
+    2. 自然语言完成标记 (raw_text)
+    3. 事件结束时间已过去
+    """
+    completed = bool(is_completed)
+    if not completed and raw_text:
+        completed = is_completed_text(raw_text)
+    if not completed:
+        completed = is_past_event(start, end, user_timezone=user_timezone)
+    return mark_completed_title(title) if completed else ((title or "").strip() or "未命名事件")
+
+
 class NLPParser:
     """事件自然语言解析器"""
 
@@ -59,6 +152,7 @@ class NLPParser:
             "location": Optional[str],       # 地点
             "attendees": List[str],          # 参会者
             "constraints": Dict,             # 时间约束
+            "is_completed": bool,            # 是否已完成/已发生事件
             "raw_text": str                  # 原始文本
         }
         """
@@ -70,6 +164,7 @@ class NLPParser:
             "location": None,
             "attendees": [],
             "constraints": {},
+            "is_completed": False,
             "raw_text": text
         }
 
@@ -105,6 +200,16 @@ class NLPParser:
         constraints = self._extract_constraints(text)
         result["constraints"].update(constraints)
 
+        # 6. 判定是否为已完成事件（语言标记 或 时间已过去）
+        result["is_completed"] = (
+            is_completed_text(text)
+            or is_past_event(
+                result["start"],
+                result["end"],
+                user_timezone=self.user_timezone_name,
+            )
+        )
+
         return result
 
     def _extract_title(self, text: str) -> str:
@@ -119,6 +224,10 @@ class NLPParser:
             r'在\w+(?:会议室|室|点)?',
             r'请\w+参加',
             r'@\w+',
+            # 完成态描述词，避免进入标题正文
+            r'已经完成|已经做完|已经结束|已完成|完成了|做完了|搞定了|搞完了|办完了|结束了',
+            r'\b(?:done|finished|completed)\b',
+            r'\[已完成\]|\[完成\]',
             r'\s+',  # 多余空白
         ]
 

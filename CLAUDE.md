@@ -22,26 +22,26 @@ export REDIRECT_URI="http://localhost:8000/auth/microsoft/callback"
 ### 运行程序
 ```bash
 # 首次认证（必须在其他命令前执行）
-uv run python scripts/main.py auth
+python run_outlook_calendar.py auth
 
 # 列出所有日历
-uv run python scripts/main.py list-calendars
+python run_outlook_calendar.py list-calendars
 
 # 查询事件
-uv run python scripts/main.py list-events --start 2025-04-21 --end 2025-04-28
+python run_outlook_calendar.py list-events --start 2025-04-21 --end 2025-04-28
 
 # 创建事件（直接写入）
-uv run python scripts/main.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
-uv run python scripts/main.py create-event --text "明天下午2点开会"
+python run_outlook_calendar.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
+python run_outlook_calendar.py create-event --text "明天下午2点开会"
 
 # 智能排程
-uv run python scripts/main.py suggest "项目评审会" --duration 120 --deadline friday
+python run_outlook_calendar.py suggest "项目评审会" --duration 120 --deadline friday
 
 # 删除事件
-uv run python scripts/main.py delete-event <event-id>
+python run_outlook_calendar.py delete-event <event-id>
 
 # 查看状态
-uv run python scripts/main.py status
+python run_outlook_calendar.py status
 ```
 
 ### Python 直接调用
@@ -89,12 +89,20 @@ suggestions = scheduler.suggest_times(
 
 ```
 用户输入
-  → nlp_parser.parse_event() 提取结构化信息
-    → 如果是已确认事件 → calendar_api.create_event() 直接写入
+  → nlp_parser.parse_event() 提取结构化信息（含 is_completed）
+    → 如果是已确认/已完成事件 → apply_completed_title_if_needed() 追加后缀 [已完成]
+      → calendar_api.create_event() 直接写入
     → 如果是未来事件 → scheduler.suggest_times() 推荐时间段
       → preference_learner 记录用户选择
         → calendar_api.create_event() 写入选中的时间段
 ```
+
+### 已完成事件标记
+
+当写入日历时识别到事件已完成/已发生，标题末尾自动追加 `[已完成]`：
+- 文本含完成语义：`已完成`、`完成了`、`做完了`、`done` 等
+- 或事件结束时间已过去
+- 示例：`今天下午3点开会已经完成` → 标题 `开会[已完成]`
 
 ### 关键依赖
 
