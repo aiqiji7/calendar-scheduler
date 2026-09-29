@@ -246,25 +246,33 @@ class NLPParser:
         }
 
         # 1. 先检测相对日期（明天、后天、下周五等）
+        #    按关键词长度降序匹配，避免 '下周' 抢先命中 '下周五'、'后天' 抢先命中 '大后天'
         target_date = None
         today = datetime.now(tz=self.user_timezone).date()
-        for rel, offset in self.DATE_RELATIVE.items():
-            if rel in text:
-                if offset == 'this_week':
-                    continue
-                elif offset == 'next_week':
-                    target_date = today + timedelta(days=7)
-                elif isinstance(offset, int):
-                    target_date = today + timedelta(days=offset)
-                elif offset in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
-                    weekday_map = {'monday': 0, 'tuesday': 1, 'wednesday': 2,
-                                   'thursday': 3, 'friday': 4, 'saturday': 5, 'sunday': 6}
-                    target_weekday = weekday_map[offset]
-                    days_ahead = (target_weekday - today.weekday()) % 7
-                    if days_ahead == 0:
-                        days_ahead = 7
-                    target_date = today + timedelta(days=days_ahead)
-                break
+        weekday_map = {'monday': 0, 'tuesday': 1, 'wednesday': 2,
+                       'thursday': 3, 'friday': 4, 'saturday': 5, 'sunday': 6}
+        for rel in sorted(self.DATE_RELATIVE, key=len, reverse=True):
+            if rel not in text:
+                continue
+            offset = self.DATE_RELATIVE[rel]
+            if offset == 'this_week':
+                continue
+            elif offset == 'next_week':
+                target_date = today + timedelta(days=7)
+            elif isinstance(offset, int):
+                target_date = today + timedelta(days=offset)
+            elif offset in weekday_map:
+                # 本周X: 若今天已是 X，顺延到下周
+                target_weekday = weekday_map[offset]
+                days_ahead = (target_weekday - today.weekday()) % 7
+                if days_ahead == 0:
+                    days_ahead = 7
+                target_date = today + timedelta(days=days_ahead)
+            elif offset.startswith('next_') and offset[5:] in weekday_map:
+                # 下周X: 下周（本周一 + 7 天所在周）的 X
+                this_monday = today - timedelta(days=today.weekday())
+                target_date = this_monday + timedelta(days=7 + weekday_map[offset[5:]])
+            break
 
         # 2. 检测时段前缀
         period_prefix = ''
