@@ -25,7 +25,16 @@ class OutlookAuth:
         self.redirect_uri = os.getenv("REDIRECT_URI", "http://localhost:8000/auth/microsoft/callback")
         self.graph_api_version = os.getenv("GRAPH_API_VERSION", "v1.0")
 
-        self.authority = f"https://login.microsoftonline.com/{self.tenant_id}"
+        # 认证 authority:
+        # - 默认: 租户 authority（工作/学校账号），由 AZURE_TENANT_ID 决定
+        # - 个人 Microsoft 账号 (outlook.com 等): .env 中设 AZURE_TENANT_ID=consumers，
+        #   或用 AAD_AUTHORITY 显式指定完整 authority（如 https://login.microsoftonline.com/common）
+        #   注意: 个人账号模式要求应用在 Azure 中启用"个人 Microsoft 帐户"支持
+        authority_override = os.getenv("AAD_AUTHORITY")
+        if authority_override:
+            self.authority = authority_override.strip().rstrip("/")
+        else:
+            self.authority = f"https://login.microsoftonline.com/{self.tenant_id}"
         self.scopes = [
             "https://graph.microsoft.com/Calendars.ReadWrite",
             "https://graph.microsoft.com/User.Read"
