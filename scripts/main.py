@@ -241,6 +241,13 @@ def cmd_list_events(args):
         start = datetime.strptime(args.start, "%Y-%m-%d")
         end = datetime.strptime(args.end, "%Y-%m-%d")
 
+    # 纯日期且起止相同 → 视为查询这一整天，自动补到次日零点
+    start_is_date = "T" not in args.start and " " not in args.start.strip()
+    end_is_date = "T" not in args.end and " " not in args.end.strip()
+    if start_is_date and end_is_date and end == start:
+        end = start + timedelta(days=1)
+        print(f"提示: 起止为同一天，按 {start.date()} 全天查询")
+
     events = client.list_events(start_time=start, end_time=end)
 
     print(f"找到 {len(events)} 个事件:")
