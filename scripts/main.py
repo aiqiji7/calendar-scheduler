@@ -40,10 +40,25 @@ from typing import Dict, Optional
 
 # 现在可以正常导入同级模块
 from auth import get_auth_manager
+from backend import format_event_time
 from calendar_api import get_calendar_client
 from nlp_parser import apply_completed_title_if_needed, parse_event
 from scheduler import get_scheduler
 from preference_learner import get_learner
+
+
+def _detect_backend_name() -> str:
+    """判断当前配置的后端名称（供 auth 等需要提前分支的场景使用）"""
+    try:
+        return getattr(get_calendar_client(), "provider_name", "未知")
+    except Exception:
+        # 后端尚未实现时，回退到环境变量推断
+        configured = (os.getenv("CALENDAR_BACKEND") or "").strip().lower()
+        if configured:
+            return configured
+        has_caldav = bool((os.getenv("CALDAV_USERNAME") or "").strip())
+        has_azure = bool((os.getenv("AZURE_CLIENT_ID") or "").strip())
+        return "caldav" if has_caldav and not has_azure else "graph"
 
 
 def _start_local_callback_server(redirect_uri: str, result: Dict[str, object]):
@@ -93,8 +108,41 @@ def _start_local_callback_server(redirect_uri: str, result: Dict[str, object]):
     return server, thread
 
 
+def _mask_account(value: str) -> str:
+    """掩码邮箱/账号：前 2 字符 + ***@域名"""
+    text = (value or "").strip()
+    if not text:
+        return "未知"
+    if "@" in text:
+        local, domain = text.split("@", 1)
+        return f"{local[:2]}***@{domain}"
+    return f"{text[:2]}***"
+
+
+def _probe_caldav():
+    """CalDAV 只读探针：验证连接并列出日历"""
+    print("正在验证 CalDAV 连接...")
+    try:
+        client = get_calendar_client()
+        calendars = client.list_calendars()
+    except Exception as exc:
+        print(f"认证失败: {exc}")
+        sys.exit(1)
+
+    print(f"✓ 认证成功: {_mask_account(os.getenv('CALDAV_USERNAME', ''))}")
+    print(f"发现 {len(calendars)} 个日历:")
+    for cal in calendars:
+        default_mark = " [默认]" if cal.get("default") else ""
+        print(f"  - {cal['name']} ({cal['id']}){default_mark}")
+
+
 def cmd_auth(args):
     """执行 OAuth2 认证流程（自动打开浏览器并监听回调）"""
+    # CalDAV 不使用 Microsoft OAuth，改为执行一次只读探针
+    if _detect_backend_name() != "graph":
+        _probe_caldav()
+        return
+
     auth_mgr = get_auth_manager()
 
     if auth_mgr.is_authenticated():
@@ -178,7 +226,7 @@ def cmd_list_calendars(args):
 
     print(f"找到 {len(calendars)} 个日历:")
     for cal in calendars:
-        default_mark = " (默认)" if cal.get("isDefaultCalendar") else ""
+        default_mark = " (默认)" if cal.get("default") else ""
         print(f"  - {cal['name']} (ID: {cal['id']}){default_mark}")
 
 
@@ -198,24 +246,7 @@ def cmd_list_events(args):
     print(f"找到 {len(events)} 个事件:")
     for event in events:
         subject = event.get("subject", "无主题")
-        # 解析并格式化时间显示
-        start_info = event.get("start", {})
-        start_dt_str = start_info.get("dateTime", "未知时间")
-        time_zone = start_info.get("timeZone", "UTC")
-        try:
-            # 尝试解析并转换为本地友好格式
-            from dateutil import parser as date_parser, tz
-            dt = date_parser.parse(start_dt_str)
-            if dt.tzinfo is None:
-                # 如果无时区信息，假设为 UTC
-                dt = dt.replace(tzinfo=tz.UTC)
-            # 转换为本地时间
-            local_tz = tz.tzlocal()
-            local_dt = dt.astimezone(local_tz)
-            time_str = local_dt.strftime("%Y-%m-%d %H:%M")
-        except Exception:
-            # 解析失败则显示原始字符串
-            time_str = f"{start_dt_str} ({time_zone})"
+        time_str = format_event_time(event)
         print(f"  - {subject} ({time_str})")
 
 
@@ -298,12 +329,12 @@ def cmd_suggest(args):
     duration = parsed.get("duration_minutes", args.duration)
 
     client = get_calendar_client()
-    now = datetime.now()
+    sched = get_scheduler()
+    # 使用带时区的当前时间，避免查询窗口与排程器内部基准错位
+    now = datetime.now(sched._tz)
     end_lookahead = now + timedelta(days=args.days)
 
     events = client.list_events(start_time=now, end_time=end_lookahead)
-
-    sched = get_scheduler()
     suggestions = sched.suggest_times(
         duration_minutes=duration,
         constraints=parsed.get("constraints", {}),
@@ -365,7 +396,23 @@ def cmd_status(args):
     learner = get_learner()
     prefs = learner.get_preference_summary()
 
+    backend_name = _detect_backend_name()
     print("=== Outlook Calendar Scheduler 状态 ===")
+    print(f"后端: {backend_name}")
+
+    # CalDAV 额外展示账号/服务器/默认日历；取不到时不影响其他输出
+    if backend_name == "caldav":
+        print(f"账号: {_mask_account(os.getenv('CALDAV_USERNAME', ''))}")
+        print(f"服务器: {os.getenv('CALDAV_BASE_URL') or 'https://dav.qq.com'}")
+        try:
+            calendars = get_calendar_client().list_calendars()
+            default_name = next(
+                (cal["name"] for cal in calendars if cal.get("default")), "未确定"
+            )
+        except Exception:
+            default_name = "未确定"
+        print(f"默认日历: {default_name}")
+
     print(f"工作时长: {prefs['working_hours']['start']} - {prefs['working_hours']['end']}")
     print(f"缓冲时间: {prefs['buffer_minutes']} 分钟")
     print(f"已创建事件数: {prefs.get('analyzed', {}).get('total_events_created', 0)}")
@@ -424,7 +471,7 @@ def main():
         commands[args.command](args)
     except Exception as e:
         print(f"错误: {e}")
-        if args.command != "auth":
+        if args.command != "auth" and _detect_backend_name() == "graph":
             print("提示: 请先运行 'python main.py auth' 完成认证")
         sys.exit(1)
 

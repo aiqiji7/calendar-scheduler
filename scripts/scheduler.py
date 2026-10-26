@@ -9,7 +9,11 @@ from datetime import datetime, timedelta, time
 from dateutil import tz
 from typing import List, Dict, Optional, Tuple
 import json
+import sys
 from pathlib import Path
+
+# 记录已提示过的 naive 时间字段形态，避免同一问题反复刷屏
+_NAIVE_WARNING_SHAPES = set()
 
 
 class SmartScheduler:
@@ -210,7 +214,9 @@ class SmartScheduler:
         """将 Graph 或本地时间字段转成 datetime，确保带时区"""
         if isinstance(value, datetime):
             dt = value
+            shape = "datetime"
         elif isinstance(value, dict):
+            shape = "dict"
             value = value.get("dateTime")
             if not isinstance(value, str):
                 return None
@@ -219,6 +225,7 @@ class SmartScheduler:
             except ValueError:
                 return None
         elif isinstance(value, str):
+            shape = "str"
             try:
                 dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
             except ValueError:
@@ -228,6 +235,9 @@ class SmartScheduler:
 
         # 确保返回带时区的 datetime
         if dt.tzinfo is None:
+            if shape not in _NAIVE_WARNING_SHAPES:
+                _NAIVE_WARNING_SHAPES.add(shape)
+                print("警告: 事件时间缺少时区信息，已按本地时区解析", file=sys.stderr)
             dt = dt.replace(tzinfo=self._tz)
         return dt
 
@@ -254,6 +264,11 @@ class SmartScheduler:
             candidate_end = candidate_end.replace(tzinfo=self._tz)
 
         for event in existing_events:
+            # 空闲/已取消事件不占用时间
+            show_as = (event.get("show_as") or "").strip().lower()
+            if show_as in ("free", "cancelled"):
+                continue
+
             event_start = self._coerce_datetime(event.get("start"))
             event_end = self._coerce_datetime(event.get("end"))
 
