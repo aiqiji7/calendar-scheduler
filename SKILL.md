@@ -111,6 +111,16 @@ python run_outlook_calendar.py create-event "团队会议" --start 2025-04-22T14
 python run_outlook_calendar.py create-event --text "明天下午2点开会"
 ```
 
+**更新事件:**
+```bash
+# 修改标题与时间
+python run_outlook_calendar.py update-event <event-id> --title "团队会议(改期)" \
+  --start 2025-04-23T14:00 --end 2025-04-23T15:00
+
+# 只修改地点/描述（传空字符串表示清除）
+python run_outlook_calendar.py update-event <event-id> --location "3F 会议室"
+```
+
 **智能排程未来事件:**
 ```bash
 python run_outlook_calendar.py suggest "项目评审会" --duration 120 --days 7 --num 3
@@ -174,7 +184,7 @@ result = app.acquire_token_by_authorization_code(
 - `get_default_calendar()` → 获取默认日历
 - `list_events(calendar_id, start_time, end_time)` → 查询时间范围内的事件
 - `create_event(subject, start_time, end_time, ...)` → 创建新事件
-- `update_event(event_id, updates, calendar_id)` → 更新事件（CalDAV 后端 v1 未实现）
+- `update_event(event_id, updates, calendar_id)` → 更新事件
 - `delete_event(event_id, calendar_id)` → 删除事件
 - `get_event(event_id, calendar_id)` → 获取单个事件
 
@@ -324,7 +334,11 @@ tz_handler.get_timezone_info()        # 获取时区信息
 - **集合 URL 必须带尾斜杠**：否则返回的资源 href 会畸形拼接
 - **`Tasks` / `好友生日` / 聚合集合都自报支持 VEVENT**：只能按名字和 principal 排除
 - **写入统一用 UTC `Z`**：不写 `TZID`、不写 `VTIMEZONE`，从根上避开夏令时歧义
-- **更新事件**：`PUT` 覆盖同一 href 实测有效，但 v1 未实现 `update_event`；需要时再补
+- **更新事件已支持**：实现方式是「REPORT 取回原 ICS → 改属性 → PUT 覆盖同一 href」，保留 `RRULE`/`EXDATE`/`VALARM`/`ATTENDEE`/`ORGANIZER`/`CATEGORIES`/`UID` 等未涉及属性
+  - **不支持修改递归系列中的单个实例**（带 `#RECURRENCE-ID` 的 id 会直接报错）
+  - **无并发保护**：`If-Match`/`If-None-Match` 被忽略，写入是 last-write-wins
+  - **QQ 会丢弃 `LAST-MODIFIED` 并重写 `DTSTAMP`**：不能用它们判断版本，以本地返回值为准
+  - 修改递归主事件的时间会让整个系列平移
 
 ---
 

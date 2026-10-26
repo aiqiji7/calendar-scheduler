@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
+from dateutil import tz as dateutil_tz
 
 from auth import get_auth_manager
 from backend import (
@@ -48,6 +49,31 @@ def _graph_location(value: Any) -> Optional[str]:
     if isinstance(value, dict):
         return value.get("displayName")
     return value
+
+
+def _to_graph_local_naive(value: object, time_zone: str) -> str:
+    """
+    把契约时间转换为 Graph 需要的“本地 naive 字符串”
+
+    datetime 带 tzinfo 时先转到目标时区再去掉时区；naive 时间按原值处理。
+    """
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise CalendarBackendError(f"无法解析时间: {value}") from exc
+    else:
+        raise CalendarBackendError(f"无法解析时间: {value}")
+
+    if dt.tzinfo is not None:
+        target_tz = dateutil_tz.gettz(time_zone)
+        if target_tz is not None:
+            dt = dt.astimezone(target_tz)
+        dt = dt.replace(tzinfo=None)
+
+    return dt.strftime("%Y-%m-%dT%H:%M:%S")
 
 
 class GraphBackend:
@@ -302,18 +328,55 @@ class GraphBackend:
         event_id: str,
         updates: Dict,
         calendar_id: str = "primary",
+        time_zone: str = "Asia/Shanghai",
     ) -> Dict:
         """
         更新事件
 
         参数:
         - event_id: 事件 ID
-        - updates: 需要更新的字段 (如 {"subject": "新标题"})
+        - updates: 契约字段 (subject/start/end/location/body/is_all_day)
+        - calendar_id: 日历 ID
+        - time_zone: 时间的时区 (默认 Asia/Shanghai)
         """
+        payload: Dict[str, Any] = {}
+
+        if "subject" in updates:
+            payload["subject"] = updates.get("subject")
+
+        if "start" in updates:
+            payload["start"] = {
+                "dateTime": _to_graph_local_naive(updates.get("start"), time_zone),
+                "timeZone": time_zone,
+            }
+
+        if "end" in updates:
+            payload["end"] = {
+                "dateTime": _to_graph_local_naive(updates.get("end"), time_zone),
+                "timeZone": time_zone,
+            }
+
+        if "location" in updates:
+            payload["location"] = {
+                "displayName": updates.get("location") or "",
+            }
+
+        if "body" in updates:
+            payload["body"] = {
+                "contentType": "HTML",
+                "content": updates.get("body") or "",
+            }
+
+        if "is_all_day" in updates:
+            payload["isAllDay"] = bool(updates.get("is_all_day"))
+
+        if not payload:
+            raise CalendarBackendError("没有需要更新的字段")
+
         raw = self._request(
             "PATCH",
             f"/me/calendars/{self._resolve_calendar_id(calendar_id)}/events/{event_id}",
-            updates,
+            payload,
         )
         return self._normalize_graph_event(raw)
 

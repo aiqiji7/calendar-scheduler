@@ -266,6 +266,28 @@ def calendar_query_body(
     )
 
 
+def calendar_query_all_body() -> bytes:
+    """
+    构造不带 time-range 的 calendar-query 请求体（取整个集合）
+
+    QQ 可能不支持无时间范围查询，调用方需自行容错并退化到分片查询。
+    """
+    return _xml(
+        f"""{_XML_DECL}
+<c:calendar-query xmlns:d="{DAV_NS}" xmlns:c="{CALDAV_NS}">
+  <d:prop>
+    <d:getetag/>
+    <c:calendar-data/>
+  </d:prop>
+  <c:filter>
+    <c:comp-filter name="VCALENDAR">
+      <c:comp-filter name="VEVENT"/>
+    </c:comp-filter>
+  </c:filter>
+</c:calendar-query>"""
+    )
+
+
 def calendar_query_by_uid_body(uid: str) -> bytes:
     """构造按 UID 过滤的 calendar-query 请求体"""
     safe_uid = escape(uid or "")

@@ -40,7 +40,7 @@ from typing import Dict, Optional
 
 # 现在可以正常导入同级模块
 from auth import get_auth_manager
-from backend import format_event_time
+from backend import CalendarBackendError, format_event_range, format_event_time
 from calendar_api import get_calendar_client
 from nlp_parser import apply_completed_title_if_needed, parse_event
 from scheduler import get_scheduler
@@ -391,6 +391,57 @@ def cmd_delete_event(args):
         sys.exit(1)
 
 
+def cmd_update_event(args):
+    """更新已有事件（增量字段）"""
+    updates = {}
+
+    if args.title is not None:
+        updates["subject"] = args.title
+    if args.location is not None:
+        updates["location"] = args.location
+    if args.body is not None:
+        updates["body"] = args.body
+
+    # start/end 必须成对出现，避免产生非法区间
+    if (args.start is None) != (args.end is None):
+        print("错误: --start 和 --end 必须同时提供或同时不提供")
+        print("提示: 使用 ISO 8601 格式，如 2026-10-27T14:00")
+        sys.exit(1)
+
+    if args.start is not None and args.end is not None:
+        try:
+            start = datetime.fromisoformat(args.start.replace("Z", "+00:00"))
+            end = datetime.fromisoformat(args.end.replace("Z", "+00:00"))
+        except ValueError as e:
+            print(f"错误: 时间格式无效 - {e}")
+            print("提示: 使用 ISO 8601 格式，如 2026-10-27T14:00")
+            sys.exit(1)
+        updates["start"] = start
+        updates["end"] = end
+
+    if not updates:
+        print("错误: 至少需要提供一个要更新的字段")
+        print("用法: python main.py update-event <event_id> --title '新标题' "
+              "--start 2026-10-27T14:00 --end 2026-10-27T15:00")
+        sys.exit(1)
+
+    try:
+        client = get_calendar_client()
+        event = client.update_event(args.event_id, updates)
+    except NotImplementedError as e:
+        print(f"更新事件失败: {e}")
+        sys.exit(1)
+    except CalendarBackendError as e:
+        print(f"更新事件失败: {e}")
+        sys.exit(1)
+
+    print(f"事件已更新: {event.get('id')}")
+    print(f"  标题: {event.get('subject', '')}")
+    print(f"  时间: {format_event_range(event)}")
+    if event.get("recurring"):
+        print("  提示: 这是递归系列的主事件，修改时间会让整个系列平移")
+
+
 def cmd_status(args):
     """查看技能状态和偏好"""
     learner = get_learner()
@@ -449,6 +500,14 @@ def main():
     delete_parser = subparsers.add_parser("delete-event", help="删除事件")
     delete_parser.add_argument("event_id", help="事件 ID")
 
+    update_parser = subparsers.add_parser("update-event", help="更新事件")
+    update_parser.add_argument("event_id", help="事件 ID")
+    update_parser.add_argument("--title", help="新标题")
+    update_parser.add_argument("--start", help="开始时间 ISO格式")
+    update_parser.add_argument("--end", help="结束时间 ISO格式")
+    update_parser.add_argument("--location", help="地点")
+    update_parser.add_argument("--body", help="事件内容 HTML")
+
     subparsers.add_parser("status", help="查看偏好状态")
 
     args = parser.parse_args()
@@ -462,6 +521,7 @@ def main():
         "list-calendars": cmd_list_calendars,
         "list-events": cmd_list_events,
         "create-event": cmd_create_event,
+        "update-event": cmd_update_event,
         "delete-event": cmd_delete_event,
         "suggest": cmd_suggest,
         "status": cmd_status

@@ -169,7 +169,20 @@ class CalendarBackend(Protocol):
 
     def update_event(
         self, event_id: str, updates: Dict, calendar_id: str = "primary"
-    ) -> Dict[str, Any]: ...
+    ) -> Dict[str, Any]:
+        """
+        更新事件（增量）
+
+        updates 支持的契约键：
+        - subject: 标题
+        - start / end: datetime 或带偏移的 ISO8601 字符串
+        - location: 地点（空字符串表示清除）
+        - body: 描述（空字符串表示清除）
+        - is_all_day: 是否全天事件
+
+        各后端自行把契约键翻译为自身载荷；未提供的键保持不变。
+        """
+        ...
 
     def delete_event(self, event_id: str, calendar_id: str = "primary") -> None: ...
 

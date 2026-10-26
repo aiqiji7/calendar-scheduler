@@ -28,6 +28,7 @@ from backend import (
 )
 from caldav_dav import (
     CalDAVSession,
+    calendar_query_all_body,
     calendar_query_body,
     calendar_query_by_uid_body,
     discover,
@@ -589,6 +590,64 @@ class CalDAVBackend:
             uid=uid,
         )
 
+    def _find_item_by_href(
+        self, collection: str, href: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        按 href 定位集合中的原始资源
+
+        先尝试无时间范围的整集合查询；失败或未命中时，退化为按 92 天分片
+        查询 now-365d ~ now+730d。href 比较基于 path 解码，忽略 query/fragment。
+        """
+        collection = ensure_trailing_slash(collection)
+        target = href if href.startswith("http") else urljoin(collection, href)
+        target_path = unquote(urlparse(target).path)
+
+        def _match(items: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+            for item in items:
+                item_url = urljoin(collection, item.get("href") or "")
+                if unquote(urlparse(item_url).path) != target_path:
+                    continue
+                matched = dict(item)
+                matched["href"] = item_url
+                return matched
+            return None
+
+        # 1. 整集合查询（QQ 可能不支持，失败就退化）
+        try:
+            response = self.session.report(
+                collection, calendar_query_all_body(), depth=1
+            )
+            matched = _match(self._parse_query_items(response.content))
+            if matched:
+                return matched
+        except AuthError:
+            raise
+        except (NotFoundError, CalendarBackendError):
+            pass
+
+        # 2. 退化：now-365d ~ now+730d，按 92 天分片
+        now = datetime.now(timezone.utc)
+        cursor = now - timedelta(days=365)
+        window_end = now + timedelta(days=730)
+        while cursor < window_end:
+            chunk_end = min(cursor + timedelta(days=_CHUNK_DAYS), window_end)
+            try:
+                response = self.session.report(
+                    collection, calendar_query_body(cursor, chunk_end), depth=1
+                )
+                matched = _match(self._parse_query_items(response.content))
+                if matched:
+                    return matched
+            except AuthError:
+                raise
+            except (NotFoundError, CalendarBackendError):
+                # 单个分片失败不阻断其余窗口
+                pass
+            cursor = chunk_end
+
+        raise NotFoundError(f"未找到事件: {href}")
+
     def update_event(
         self,
         event_id: str,
@@ -596,13 +655,161 @@ class CalDAVBackend:
         calendar_id: str = "primary",
     ) -> Dict:
         """
-        更新事件（v1 不支持）
+        更新事件：REPORT 取回原 ICS → 修改属性 → PUT 覆盖同一 href
 
-        原因：QQ 的 OPTIONS 不含 PATCH，单资源 GET 永远 404（无法先读后改），
-        且 If-Match 被完全忽略（无法做乐观并发控制）。覆盖写需要调用方提供
-        完整 ICS，当前契约只传增量 updates，无法安全合成。
+        QQ 无 PATCH、单资源 GET 不可用，因此只能整资源覆盖；If-Match 被忽略，
+        没有并发保护（last-write-wins）。递归系列中的单个实例不支持修改。
         """
-        raise NotImplementedError("CalDAV 后端 v1 暂不支持更新事件")
+        if not updates:
+            raise CalendarBackendError("没有需要更新的字段")
+
+        if "#" in event_id:
+            raise NotImplementedError("暂不支持修改递归系列中的单个实例")
+
+        collection = ensure_trailing_slash(self._select_calendar(calendar_id)["href"])
+        href = event_id if event_id.startswith("http") else urljoin(collection, event_id)
+
+        # 1. 取回原始资源
+        item = self._find_item_by_href(collection, href)
+        if not item:
+            raise NotFoundError(f"未找到事件: {href}")
+
+        try:
+            cal = icalendar.Calendar.from_ical(item.get("ical") or "")
+        except Exception as exc:
+            raise CalendarBackendError(f"无法解析 iCalendar 数据: {exc}") from exc
+
+        if getattr(cal, "name", "") != "VCALENDAR":
+            raise CalendarBackendError("iCalendar 数据缺少 VCALENDAR 组件")
+
+        components = cal.walk("VEVENT")
+        if not components:
+            raise NotFoundError(f"未找到事件: {href}", status=404)
+
+        # 2. 定位主事件：优先不带 RECURRENCE-ID 的 VEVENT
+        comp = next(
+            (item_comp for item_comp in components if item_comp.get("RECURRENCE-ID") is None),
+            components[0],
+        )
+
+        # 3. 起止时间校验（两者都给出时）
+        if "start" in updates and "end" in updates:
+            start_check = self._to_utc_dt(updates.get("start"))
+            end_check = self._to_utc_dt(updates.get("end"))
+            if start_check is None or end_check is None:
+                raise CalendarBackendError("无法解析 start / end 时间")
+            if start_check >= end_check:
+                raise CalendarBackendError("开始时间必须早于结束时间")
+
+        # 4. 决定时间格式：显式 is_all_day 优先，否则沿用原 DTSTART 类型
+        start_prop = comp.get("DTSTART")
+        existing_start = start_prop.dt if start_prop is not None else None
+        if "is_all_day" in updates:
+            is_all_day = bool(updates.get("is_all_day"))
+        else:
+            is_all_day = isinstance(existing_start, date) and not isinstance(
+                existing_start, datetime
+            )
+
+        def _write_time(prop_name: str, value) -> None:
+            """写入 DTSTART/DTEND：先删再 add，避免退化为字符串"""
+            if is_all_day:
+                dt = self._to_local_date(value)
+            else:
+                dt = self._to_utc_dt(value)
+            if dt is None:
+                raise CalendarBackendError(f"无法解析 {prop_name} 时间")
+            if prop_name in comp:
+                del comp[prop_name]
+            comp.add(prop_name, dt)
+
+        if "start" in updates:
+            _write_time("DTSTART", updates.get("start"))
+        if "end" in updates:
+            _write_time("DTEND", updates.get("end"))
+
+        # 5. 文本属性：传空字符串表示删除
+        if "subject" in updates:
+            if "SUMMARY" in comp:
+                del comp["SUMMARY"]
+            comp.add("SUMMARY", str(updates.get("subject") or ""))
+
+        for key, prop_name in (("location", "LOCATION"), ("body", "DESCRIPTION")):
+            if key not in updates:
+                continue
+            value = updates.get(key)
+            text = "" if value is None else str(value)
+            if prop_name in comp:
+                del comp[prop_name]
+            if text.strip():
+                comp.add(prop_name, text)
+
+        # 6. 版本与时间戳
+        try:
+            sequence = int(comp.get("SEQUENCE") or 0)
+        except (TypeError, ValueError):
+            sequence = 0
+        if "SEQUENCE" in comp:
+            del comp["SEQUENCE"]
+        comp.add("SEQUENCE", sequence + 1)
+
+        now = datetime.now(timezone.utc)
+        # 注：QQ 存储时会丢弃 LAST-MODIFIED 并重写 DTSTAMP，这里仍按 RFC 5545 发送
+        for prop_name in ("LAST-MODIFIED", "DTSTAMP"):
+            if prop_name in comp:
+                del comp[prop_name]
+            comp.add(prop_name, now)
+
+        # 7. 覆盖写回同一 href，不添加 If-* 前置条件头
+        response = self.session.put(href, cal.to_ical())
+        etag = response.headers.get("ETag")
+
+        # 8. 用修改后的值合成返回契约（GET 不可用）
+        final_start_prop = comp.get("DTSTART")
+        if final_start_prop is None:
+            raise CalendarBackendError("事件缺少 DTSTART")
+        final_start = final_start_prop.dt
+
+        final_end_prop = comp.get("DTEND")
+        if final_end_prop is not None:
+            final_end = final_end_prop.dt
+        else:
+            duration_prop = comp.get("DURATION")
+            if duration_prop is not None:
+                final_end = final_start + duration_prop.dt
+            elif isinstance(final_start, date) and not isinstance(final_start, datetime):
+                final_end = final_start + timedelta(days=1)
+            else:
+                final_end = final_start
+
+        status = str(comp.get("STATUS") or "").strip().upper()
+        transp = str(comp.get("TRANSP") or "").strip().upper()
+        if status == "CANCELLED":
+            show_as = "cancelled"
+        elif transp == "TRANSPARENT":
+            show_as = "free"
+        else:
+            show_as = "busy"
+
+        location = comp.get("LOCATION")
+        final_is_all_day = isinstance(final_start, date) and not isinstance(
+            final_start, datetime
+        )
+
+        return normalize_event(
+            source=self.provider_name,
+            event_id=href,
+            subject=str(comp.get("SUMMARY") or ""),
+            start=self._as_utc(final_start),
+            end=self._as_utc(final_end),
+            is_all_day=final_is_all_day,
+            show_as=show_as,
+            location=str(location) if location else None,
+            categories=self._extract_categories(comp),
+            recurring=bool(comp.get("RRULE")),
+            etag=etag,
+            uid=str(comp.get("UID") or "") or None,
+        )
 
     def delete_event(self, event_id: str, calendar_id: str = "primary") -> None:
         """删除事件；event_id 可能是 href#RECURRENCE-ID，取 # 前部分"""
