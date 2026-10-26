@@ -13,6 +13,10 @@ __pycache__/
 
 # 环境变量（包含敏感信息）
 .env
+.env.bak*
+
+# 令牌/配置备份（重命名产生的副本同样敏感）
+.outlook_calendar_*.bak
 
 # IDE
 .vscode/

@@ -23,17 +23,23 @@ from backend import (
 )
 
 
+def _local_tz():
+    """查询参数中 naive 时间所属的时区（与 CalDAV 后端保持一致）"""
+    name = (os.getenv("CALENDAR_TIME_ZONE") or "Asia/Shanghai").strip()
+    return dateutil_tz.gettz(name) or timezone.utc
+
+
 def _to_utc_z(value: datetime) -> str:
-    """转换为 Graph 接受的 UTC 字符串（naive 视为 UTC）"""
+    """转换为 Graph 接受的 UTC 字符串（naive 按本地时区解释，不是 UTC）"""
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
+        value = value.replace(tzinfo=_local_tz())
     return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _to_utc_iso(value: datetime) -> str:
     """转换为带 Z 的 UTC ISO8601 字符串（用于 free/busy）"""
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
+        value = value.replace(tzinfo=_local_tz())
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
