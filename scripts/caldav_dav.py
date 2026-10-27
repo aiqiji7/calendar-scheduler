@@ -15,12 +15,20 @@ from xml.sax.saxutils import escape
 import requests
 from requests.auth import HTTPBasicAuth
 
-from backend import (
-    AuthError,
-    CalendarBackendError,
-    ConflictError,
-    NotFoundError,
-)
+try:  # 作为包导入（from scripts.xxx import ...）
+    from .backend import (
+        AuthError,
+        CalendarBackendError,
+        ConflictError,
+        NotFoundError,
+    )
+except ImportError:  # 作为脚本直接运行（python run_calendar.py ...）
+    from backend import (
+        AuthError,
+        CalendarBackendError,
+        ConflictError,
+        NotFoundError,
+    )
 
 # QQ 邮箱 CalDAV 预设
 QQ_PRESET = {"key": "qq", "label": "QQ 邮箱", "base_url": "https://dav.qq.com"}

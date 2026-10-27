@@ -19,23 +19,45 @@ import icalendar
 import recurring_ical_events
 from dateutil import tz
 
-from backend import (
-    AuthError,
-    CalendarBackendError,
-    NotFoundError,
-    normalize_calendar,
-    normalize_event,
-)
-from caldav_dav import (
-    CalDAVSession,
-    calendar_query_all_body,
-    calendar_query_body,
-    calendar_query_by_uid_body,
-    discover,
-    ensure_trailing_slash,
-    parse_multistatus,
-    resource_url,
-)
+try:  # 作为包导入（from scripts.xxx import ...）
+    from .backend import (
+        AuthError,
+        CalendarBackendError,
+        NotFoundError,
+        normalize_calendar,
+        normalize_event,
+    )
+except ImportError:  # 作为脚本直接运行（python run_calendar.py ...）
+    from backend import (
+        AuthError,
+        CalendarBackendError,
+        NotFoundError,
+        normalize_calendar,
+        normalize_event,
+    )
+
+try:  # 作为包导入（from scripts.xxx import ...）
+    from .caldav_dav import (
+        CalDAVSession,
+        calendar_query_all_body,
+        calendar_query_body,
+        calendar_query_by_uid_body,
+        discover,
+        ensure_trailing_slash,
+        parse_multistatus,
+        resource_url,
+    )
+except ImportError:  # 作为脚本直接运行（python run_calendar.py ...）
+    from caldav_dav import (
+        CalDAVSession,
+        calendar_query_all_body,
+        calendar_query_body,
+        calendar_query_by_uid_body,
+        discover,
+        ensure_trailing_slash,
+        parse_multistatus,
+        resource_url,
+    )
 
 # 查询窗口分片阈值（QQ 实测 40 天稳定，放宽到 92 天）
 _CHUNK_DAYS = 92

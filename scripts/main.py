@@ -5,19 +5,19 @@ Calendar Scheduler - 主入口
 使用示例:
 
 1. 首次认证:
-$ python main.py auth
+$ python run_calendar.py auth
 
 2. 列出日历:
-$ python main.py list-calendars
+$ python run_calendar.py list-calendars
 
 3. 查询事件:
-$ python main.py list-events --start 2025-04-21 --end 2025-04-28
+$ python run_calendar.py list-events --start 2025-04-21 --end 2025-04-28
 
 4. 创建事件 (直接写入):
-$ python main.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
+$ python run_calendar.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
 
 5. 智能排程:
-$ python main.py suggest "项目评审会" --duration 120 --deadline friday
+$ python run_calendar.py suggest "项目评审会" --duration 120 --days 7 --num 3
 """
 
 import sys
@@ -38,13 +38,21 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
-# 现在可以正常导入同级模块
-from auth import get_auth_manager
-from backend import CalendarBackendError, format_event_range, format_event_time
-from calendar_api import get_calendar_client
-from nlp_parser import apply_completed_title_if_needed, parse_event
-from scheduler import get_scheduler
-from preference_learner import get_learner
+# 现在可以正常导入同级模块（相对导入优先，脚本模式回退到裸导入）
+try:  # 作为包导入（from scripts.xxx import ...）
+    from .auth import get_auth_manager
+    from .backend import CalendarBackendError, format_event_range, format_event_time
+    from .calendar_api import get_calendar_client
+    from .nlp_parser import apply_completed_title_if_needed, parse_event
+    from .scheduler import get_scheduler
+    from .preference_learner import get_learner
+except ImportError:  # 作为脚本直接运行（python run_calendar.py ...）
+    from auth import get_auth_manager
+    from backend import CalendarBackendError, format_event_range, format_event_time
+    from calendar_api import get_calendar_client
+    from nlp_parser import apply_completed_title_if_needed, parse_event
+    from scheduler import get_scheduler
+    from preference_learner import get_learner
 
 
 def _detect_backend_name() -> str:
@@ -283,8 +291,8 @@ def cmd_create_event(args):
         # 验证命令行参数
         if not args.start or not args.end:
             print("错误: 缺少必需的时间参数")
-            print("用法: python main.py create-event '标题' --start 2025-04-24T10:00 --end 2025-04-24T11:00")
-            print("   或: python main.py create-event --text '明天下午2点开会'")
+            print("用法: python run_calendar.py create-event '标题' --start 2025-04-24T10:00 --end 2025-04-24T11:00")
+            print("   或: python run_calendar.py create-event --text '明天下午2点开会'")
             sys.exit(1)
         try:
             start = datetime.fromisoformat(args.start)
@@ -428,7 +436,7 @@ def cmd_update_event(args):
 
     if not updates:
         print("错误: 至少需要提供一个要更新的字段")
-        print("用法: python main.py update-event <event_id> --title '新标题' "
+        print("用法: python run_calendar.py update-event <event_id> --title '新标题' "
               "--start 2026-10-27T14:00 --end 2026-10-27T15:00")
         sys.exit(1)
 
@@ -478,7 +486,7 @@ def cmd_status(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Calendar Scheduler")
+    parser = argparse.ArgumentParser(prog="run_calendar.py", description="Calendar Scheduler")
     subparsers = parser.add_subparsers(dest="command", help="可用命令")
 
     subparsers.add_parser("auth", help="执行 OAuth2 认证")
@@ -539,7 +547,7 @@ def main():
     except Exception as e:
         print(f"错误: {e}")
         if args.command != "auth" and _detect_backend_name() == "graph":
-            print("提示: 请先运行 'python main.py auth' 完成认证")
+            print("提示: 请先运行 'python run_calendar.py auth' 完成认证")
         sys.exit(1)
 
 

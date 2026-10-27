@@ -9,7 +9,10 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import json
 from pathlib import Path
-from scheduler import SmartScheduler
+try:  # 作为包导入（from scripts.xxx import ...）
+    from .scheduler import SmartScheduler
+except ImportError:  # 作为脚本直接运行（python run_calendar.py ...）
+    from scheduler import SmartScheduler
 
 
 class PreferenceLearner:

@@ -12,15 +12,29 @@ from typing import Any, Dict, List, Optional
 import requests
 from dateutil import tz as dateutil_tz
 
-from auth import get_auth_manager
-from backend import (
-    AuthError,
-    CalendarBackendError,
-    ConflictError,
-    NotFoundError,
-    normalize_calendar,
-    normalize_event,
-)
+try:  # 作为包导入（from scripts.xxx import ...）
+    from .auth import get_auth_manager
+except ImportError:  # 作为脚本直接运行（python run_calendar.py ...）
+    from auth import get_auth_manager
+
+try:  # 作为包导入（from scripts.xxx import ...）
+    from .backend import (
+        AuthError,
+        CalendarBackendError,
+        ConflictError,
+        NotFoundError,
+        normalize_calendar,
+        normalize_event,
+    )
+except ImportError:  # 作为脚本直接运行（python run_calendar.py ...）
+    from backend import (
+        AuthError,
+        CalendarBackendError,
+        ConflictError,
+        NotFoundError,
+        normalize_calendar,
+        normalize_event,
+    )
 
 
 def _local_tz():

@@ -248,13 +248,19 @@ def get_backend(provider: Optional[str] = None) -> CalendarBackend:
         name = "caldav" if caldav_username and not azure_client_id else "graph"
 
     if name == "graph":
-        from graph_backend import GraphBackend
+        try:  # 作为包导入（from scripts.xxx import ...）
+            from .graph_backend import GraphBackend
+        except ImportError:  # 作为脚本直接运行（python run_calendar.py ...）
+            from graph_backend import GraphBackend
 
         return GraphBackend()
 
     if name == "caldav":
         try:
-            from caldav_backend import CalDAVBackend
+            try:  # 作为包导入（from scripts.xxx import ...）
+                from .caldav_backend import CalDAVBackend
+            except ImportError:  # 作为脚本直接运行（python run_calendar.py ...）
+                from caldav_backend import CalDAVBackend
         except ImportError as exc:
             raise CalendarBackendError("CalDAV 后端尚未实现（P2 阶段）") from exc
         return CalDAVBackend()
