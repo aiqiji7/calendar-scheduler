@@ -55,7 +55,7 @@ Use `python run_calendar.py ...` from the skill root. The launcher locates `scri
 
 **方式 A：Graph（Outlook / 个人 Microsoft 账户）**
 
-在 Azure Portal 注册应用,获取以下信息并设置为环境变量(写入 `.env` 文件):
+在 Azure Portal 注册应用,获取以下信息并设置为环境变量(复制仓库根的 `.env.example` 为 `.env` 后填值):
 
 ```bash
 CALENDAR_BACKEND=graph
@@ -288,13 +288,17 @@ tz_handler.get_timezone_info()        # 获取时区信息
 | `AZURE_TENANT_ID` | Azure 目录 Tenant ID | graph 必需 |
 | `AZURE_CLIENT_SECRET` | 应用客户端密钥 | graph 必需 |
 | `REDIRECT_URI` | OAuth2 回调地址 | graph 必需 |
+| `AAD_AUTHORITY` | 覆盖默认 authority（如多租户用 `https://login.microsoftonline.com/common`） | 否 |
 | `GRAPH_API_VERSION` | Graph API 版本 (默认 v1.0) | 否 |
+| `CALENDAR_TIME_ZONE` | 时区名，用于解释 naive 时间与写入时的 `timeZone`（默认 `Asia/Shanghai`） | 否 |
 | `CALDAV_BASE_URL` | CalDAV 服务器地址（QQ 邮箱为 `https://dav.qq.com`） | caldav 必需 |
 | `CALDAV_USERNAME` | CalDAV 账号，必须是完整邮箱地址 | caldav 必需 |
 | `CALDAV_PASSWORD` | CalDAV 授权码（QQ 邮箱为 16 位授权码） | caldav 必需 |
 | `CALDAV_CALENDAR` | 目标日历的显示名或 href，留空自动选择 | 否 |
 | `CALDAV_EXCLUDE_CALENDARS` | 排除的日历名，逗号分隔（默认 `Tasks,好友生日`） | 否 |
-| `CALENDAR_SCHEDULER_DEBUG` | 启用调试日志 | 否 |
+| `CALENDAR_SCHEDULER_NO_UV` | 设为 `1` 时跳过 `uv`，直接用缓存虚拟环境 | 否 |
+| `CALENDAR_SCHEDULER_CACHE` | 覆盖启动器缓存虚拟环境的目录 | 否 |
+| `UV_BIN` | 显式指定 `uv` 可执行文件路径 | 否 |
 
 ## Troubleshooting
 
@@ -319,10 +323,12 @@ tz_handler.get_timezone_info()        # 获取时区信息
 ## Advanced Usage
 
 ### 批量操作
-使用 `scripts/calendar_api.py` 的批量方法处理多个事件。
+
+没有批量接口：多个事件请循环调用 `list_events()` / `create_event()` / `update_event()`。多人时间查询走 Graph 专有方法 `get_free_busy()` 与 `find_meeting_times()`，CalDAV 后端不提供。
 
 ### 自定义排程规则
-修改 `scripts/scheduler.py` 中的权重计算函数,调整推荐算法。
+
+修改 `scripts/scheduler.py` 的 `_score_candidate()`，调整候选时间段的打分与惩罚逻辑。
 
 ### CalDAV 已知限制（QQ 邮箱实测）
 
@@ -343,6 +349,6 @@ tz_handler.get_timezone_info()        # 获取时区信息
 ---
 
 **资源说明**:
+- `run_calendar.py` - 可移植启动器(优先 `uv`，回退缓存虚拟环境)
 - `scripts/` - 核心功能脚本(可直接执行或导入)
-- `references/` - Microsoft Graph API 详细文档和 OAuth2 配置指南
-- `assets/` - 本 skill 暂未使用,可删除或存放模板文件
+- `references/` - Microsoft Graph API 详细文档与 OAuth2 配置指南

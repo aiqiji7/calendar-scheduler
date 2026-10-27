@@ -102,9 +102,9 @@ utc_dt = dt_ny.astimezone(tz.UTC)
 可从 Graph API 获取用户时区设置:
 
 ```python
-from calendar_api import get_calendar_client
+from scripts.graph_backend import GraphBackend
 
-client = get_calendar_client()
+client = GraphBackend()  # 仅 graph 后端可用；CalDAV 无对应的用户设置接口
 user = client._request("GET", "/me")
 user_timezone = user.get("mailboxSettings", {}).get("timeZone", "UTC")
 ```

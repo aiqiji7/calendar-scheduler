@@ -78,7 +78,7 @@ $env:REDIRECT_URI="http://localhost:8000/auth/microsoft/callback"
 完成配置后,运行:
 
 ```bash
-python main.py auth
+python run_calendar.py auth
 ```
 
 按照提示在浏览器中授权,输入回调 URL 中的授权码,即可完成认证。

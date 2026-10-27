@@ -1,121 +1,34 @@
 # CLAUDE.md
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 项目概述
+面向编码 agent 的仓库约束。**文档权威源是 [SKILL.md](SKILL.md)**：命令、环境变量、模块说明一律以那里为准，本文件不复制清单，只记录代码里看不出来、且容易踩错的东西。
 
-Calendar Scheduler 是一个通过 Microsoft Graph API 或 CalDAV 管理日历的 Python 技能。支持 OAuth2/授权码认证、事件增删改查、智能排程推荐、自然语言解析和用户偏好学习。
+## 验证方式
 
-## 常用命令
-
-### 环境设置
 ```bash
-# 安装依赖
-uv sync
+# 无需认证、不调用 Graph API，仅校验启动器能定位 scripts/main.py 与 uv
+python run_calendar.py --launcher-self-test
 
-# 配置环境变量（必需）
-export AZURE_CLIENT_ID="your-client-id"
-export AZURE_TENANT_ID="your-tenant-id"
-export AZURE_CLIENT_SECRET="your-client-secret"
-export REDIRECT_URI="http://localhost:8000/auth/microsoft/callback"
-```
-
-### 运行程序
-```bash
-# 首次认证（必须在其他命令前执行）
-python run_calendar.py auth
-
-# 列出所有日历
-python run_calendar.py list-calendars
-
-# 查询事件
-python run_calendar.py list-events --start 2025-04-21 --end 2025-04-28
-
-# 创建事件（直接写入）
-python run_calendar.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
-python run_calendar.py create-event --text "明天下午2点开会"
-
-# 智能排程
-python run_calendar.py suggest "项目评审会" --duration 120 --deadline friday
-
-# 删除事件
-python run_calendar.py delete-event <event-id>
-
-# 查看状态
+# 查看当前后端、账号与偏好状态（需已配置 .env）
 python run_calendar.py status
 ```
 
-### Python 直接调用
-```python
-from scripts.auth import get_auth_manager
-from scripts.calendar_api import get_calendar_client
-from scripts.scheduler import get_scheduler
-from scripts.nlp_parser import parse_event
+改动 CLI 或后端后，至少跑通上面两条；涉及日历读写的行为变更，用 `list-events` / `create-event` 在真实账号上验证再声明完成。
 
-# 解析自然语言
-parsed = parse_event("明天下午2点开会")
-# 返回: {title, start, end, duration_minutes, location, attendees, constraints}
+## 结构要点
 
-# 获取日历客户端
-client = get_calendar_client()
-events = client.list_events(start_time=start, end_time=end)
-event = client.create_event(subject, start_time, end_time, ...)
+- `run_calendar.py` → `scripts/main.py`：启动器负责定位脚本与 uv，业务逻辑不要写进启动器。
+- `scripts/backend.py`：后端 Protocol、12 键事件契约、`get_backend()`（显式参数 > `CALENDAR_BACKEND` > 自动推断）。
+- 新增/修改能力必须同时适配 `graph_backend.py` 与 `caldav_backend.py`，契约不一致会直接破坏排程与 NLP 链路。
+- `scripts/calendar_api.py` 只是旧入口兼容层，新代码不要用。
 
-# 智能排程
-scheduler = get_scheduler()
-suggestions = scheduler.suggest_times(
-    duration_minutes=60,
-    constraints={},
-    existing_events=events,
-    lookahead_days=7,
-    num_suggestions=3
-)
-```
+## 非显然约束
 
-## 架构概述
+- **导入方式**：跨模块导入统一写「相对导入优先 + 裸导入回退」（`try: from .x import y` / `except ImportError: from x import y`），因此包导入（`from scripts.backend import ...`）与脚本运行（`python run_calendar.py`、`python scripts/main.py`）都可用。新增模块照此模式，**不要再往 `sys.path` 里塞路径**，否则会遮蔽宿主项目的同名模块（`backend`、`scheduler` 等都过于通用）。
+- **时区**：API 层统一 UTC，展示层转本地时区；Graph 收到不带偏移的查询时间时按本地时区解释，不是 UTC。
+- **CalDAV 不可依赖服务端语义**：`If-Match`/`If-None-Match` 被忽略（last-write-wins）、单资源 GET 恒 404（只能走 `REPORT calendar-query`）、`C:expand` 被忽略（递归事件本地展开）、集合 URL 必须带尾斜杠、写入统一 UTC `Z` 不写 `TZID`/`VTIMEZONE`。详见 SKILL.md 的 CalDAV 已知限制。
+- **`[已完成]` 后缀**：`create-event` 写入前会判断完成语义文案或结束时间已过，命中则在标题末尾追加，已有后缀不重复。
+- **敏感文件**：`.env`、`.calendar_token_cache.json`、`.calendar_preferences.json`、`.calendar_history.json` 已在 `.gitignore`。不要提交，不要在日志或异常里打印令牌与授权码。
 
-### 模块职责
+## 文档同步
 
-| 模块 | 职责 |
-|------|------|
-| `auth.py` | OAuth2 认证管理，使用 MSAL 库，令牌缓存在 `.calendar_token_cache.json` |
-| `calendar_api.py` | Graph API 封装，处理 REST 请求和响应转换 |
-| `scheduler.py` | 排程算法：生成候选时间段，根据缓冲冲突、用户偏好计算适宜度分数 |
-| `nlp_parser.py` | 自然语言解析，提取时间、地点、参会者、时长等信息 |
-| `preference_learner.py` | 记录用户选择历史，学习偏好模式，存储在 `.calendar_preferences.json` 和 `.calendar_history.json` |
-| `timezone_utils.py` | UTC/本地时区转换，夏令时处理 |
-| `main.py` | CLI 入口，包含所有子命令处理函数 |
-
-### 数据流
-
-```
-用户输入
-  → nlp_parser.parse_event() 提取结构化信息（含 is_completed）
-    → 如果是已确认/已完成事件 → apply_completed_title_if_needed() 追加后缀 [已完成]
-      → calendar_api.create_event() 直接写入
-    → 如果是未来事件 → scheduler.suggest_times() 推荐时间段
-      → preference_learner 记录用户选择
-        → calendar_api.create_event() 写入选中的时间段
-```
-
-### 已完成事件标记
-
-当写入日历时识别到事件已完成/已发生，标题末尾自动追加 `[已完成]`：
-- 文本含完成语义：`已完成`、`完成了`、`做完了`、`done` 等
-- 或事件结束时间已过去
-- 示例：`今天下午3点开会已经完成` → 标题 `开会[已完成]`
-
-### 关键依赖
-
-- `msal==1.28.0` - Microsoft 认证库
-- `requests` - HTTP 请求
-- `dateparser` - 自然语言日期解析
-- `python-dateutil` + `pytz` - 时区处理
-- `python-dotenv` - 环境变量加载
-
-### 配置文件
-
-- 用户偏好：`.calendar_preferences.json`
-- 历史记录：`.calendar_history.json`
-- 令牌缓存：`.calendar_token_cache.json`
-
-默认工作时间是 09:00-18:00，缓冲时间为15分钟，避开午休（12:00-14:00）。
+修改 CLI 参数、环境变量、后端行为时，同步更新 `SKILL.md`（权威）与 `README.md`；本文件只在约束本身变化时改。
