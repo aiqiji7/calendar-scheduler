@@ -1,8 +1,6 @@
 # Calendar Scheduler
 
-通过 **Microsoft Graph API** 或 **CalDAV** 管理日历的 Python 工具，支持事件增删改查、智能排程推荐、自然语言解析和多时区处理。内置 Graph 与 CalDAV 双后端，事件契约统一，排程逻辑与后端无关。
-
-> 仓库远端仍为 `aiqiji7/outlook-calendar-scheduler`，那是本项目改名前的旧地址。
+一个日程安排SKILL，通过 **Microsoft Graph API** 或 **CalDAV** 管理日历的 Python 工具，支持事件增删改查、智能排程推荐、自然语言解析和多时区处理。内置 Graph 与 CalDAV 双后端，事件契约统一，排程逻辑与后端无关。
 
 ## 特性
 
@@ -88,7 +86,7 @@ CalDAV 后端在 QQ 邮箱上存在若干服务端限制：单资源 GET 恒为 
 ## 文档
 
 - [SKILL.md](SKILL.md) — 权威使用文档：配置、完整命令、模块说明、排障
-- [CLAUDE.md](CLAUDE.md) — 面向编码 agent 的仓库约束与验证方式
+- [AGENTS.md](AGENTS.md) — 面向 AI 编码 agent 的仓库约束与验证方式
 - [references/](references/) — Graph API / OAuth2 / 时区细节
 - [.env.example](.env.example) — 环境变量模板（复制为 `.env` 后填值）
 
