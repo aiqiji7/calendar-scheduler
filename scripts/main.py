@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Outlook Calendar Scheduler - 主入口
+Calendar Scheduler - 主入口
 
 使用示例:
 
@@ -455,7 +455,7 @@ def cmd_status(args):
     prefs = learner.get_preference_summary()
 
     backend_name = _detect_backend_name()
-    print("=== Outlook Calendar Scheduler 状态 ===")
+    print("=== Calendar Scheduler 状态 ===")
     print(f"后端: {backend_name}")
 
     # CalDAV 额外展示账号/服务器/默认日历；取不到时不影响其他输出
@@ -478,7 +478,7 @@ def cmd_status(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Outlook Calendar Scheduler")
+    parser = argparse.ArgumentParser(description="Calendar Scheduler")
     subparsers = parser.add_subparsers(dest="command", help="可用命令")
 
     subparsers.add_parser("auth", help="执行 OAuth2 认证")

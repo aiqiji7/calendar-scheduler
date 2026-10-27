@@ -1,7 +1,7 @@
 [project]
-name = "outlook-calendar-scheduler"
+name = "calendar-scheduler"
 version = "1.0.0"
-description = "Outlook Calendar Scheduler - Microsoft Graph API calendar management"
+description = "Calendar Scheduler - Microsoft Graph / CalDAV calendar management"
 requires-python = ">=3.10"
 dependencies = [
     "msal==1.28.0",

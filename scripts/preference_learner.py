@@ -16,8 +16,8 @@ class PreferenceLearner:
     """用户偏好学习器"""
 
     def __init__(self, prefs_path: Optional[Path] = None):
-        self.preference_path = prefs_path or (Path(__file__).parent.parent / ".outlook_calendar_preferences.json")
-        self.history_path = Path(__file__).parent.parent / ".outlook_calendar_history.json"
+        self.preference_path = prefs_path or (Path(__file__).parent.parent / ".calendar_preferences.json")
+        self.history_path = Path(__file__).parent.parent / ".calendar_history.json"
         # 确保目录存在
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
         self.scheduler = SmartScheduler()
@@ -148,7 +148,7 @@ class PreferenceLearner:
         """导出学习报告"""
         summary = self.get_preference_summary()
         report_lines = [
-            "=== Outlook Calendar 偏好学习报告 ===",
+            "=== Calendar 偏好学习报告 ===",
             f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
             "【工作时间】",

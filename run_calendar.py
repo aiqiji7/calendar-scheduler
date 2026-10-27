@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable launcher for Outlook Calendar Scheduler.
+"""Portable launcher for Calendar Scheduler.
 
 Prefer uv when it is available, but do not rely on an interactive shell PATH.
 When uv cannot be found, create a cached virtual environment, install the
@@ -18,7 +18,7 @@ from pathlib import Path
 
 
 MAIN_SCRIPT = Path("scripts") / "main.py"
-NO_UV_ENV = "OUTLOOK_CALENDAR_NO_UV"
+NO_UV_ENV = "CALENDAR_SCHEDULER_NO_UV"
 UV_BIN_ENV = "UV_BIN"
 SELF_TEST_ARG = "--launcher-self-test"
 
@@ -122,21 +122,21 @@ def find_uv() -> Path | None:
 
 
 def cache_root() -> Path:
-    override = os.environ.get("OUTLOOK_CALENDAR_CACHE")
+    override = os.environ.get("CALENDAR_SCHEDULER_CACHE")
     if override:
         return Path(_normalize_path_value(override))
 
     if os.environ.get("XDG_CACHE_HOME"):
-        return Path(_normalize_path_value(os.environ["XDG_CACHE_HOME"])) / "opencode-outlook-calendar-scheduler"
+        return Path(_normalize_path_value(os.environ["XDG_CACHE_HOME"])) / "opencode-calendar-scheduler"
 
     if os.environ.get("LOCALAPPDATA"):
-        return Path(_normalize_path_value(os.environ["LOCALAPPDATA"])) / "opencode-outlook-calendar-scheduler"
+        return Path(_normalize_path_value(os.environ["LOCALAPPDATA"])) / "opencode-calendar-scheduler"
 
     home = _safe_home()
     if home:
-        return home / ".cache" / "opencode-outlook-calendar-scheduler"
+        return home / ".cache" / "opencode-calendar-scheduler"
 
-    return Path(tempfile.gettempdir()) / "opencode-outlook-calendar-scheduler"
+    return Path(tempfile.gettempdir()) / "opencode-calendar-scheduler"
 
 
 def venv_dir() -> Path:
@@ -194,7 +194,7 @@ def _file_digest(path: Path) -> str:
 
 
 def install_marker(directory: Path) -> Path:
-    return directory / ".outlook-calendar-requirements.sha256"
+    return directory / ".calendar-requirements.sha256"
 
 
 def ensure_dependencies(python: Path, skill_dir: Path, directory: Path) -> None:
@@ -206,7 +206,7 @@ def ensure_dependencies(python: Path, skill_dir: Path, directory: Path) -> None:
     if marker.exists() and marker.read_text(encoding="utf-8").strip() == digest:
         return
 
-    print("Installing Outlook Calendar dependencies from skill metadata.", file=sys.stderr)
+    print("Installing Calendar dependencies from skill metadata.", file=sys.stderr)
     subprocess.run(
         [
             str(python),
@@ -259,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
     main_script = skill_dir / MAIN_SCRIPT
 
     if not main_script.exists():
-        print(f"Error: Outlook Calendar main script not found: {main_script}", file=sys.stderr)
+        print(f"Error: Calendar main script not found: {main_script}", file=sys.stderr)
         return 2
 
     if args and args[0] == SELF_TEST_ARG:
@@ -272,7 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return run_with_venv(skill_dir, main_script, args)
     except subprocess.CalledProcessError as exc:
-        print(f"Error: failed to start Outlook Calendar environment; exit code {exc.returncode}.", file=sys.stderr)
+        print(f"Error: failed to start Calendar environment; exit code {exc.returncode}.", file=sys.stderr)
         print(f"Install uv or set {UV_BIN_ENV}=/path/to/uv to use uv explicitly.", file=sys.stderr)
         return exc.returncode or 1
 

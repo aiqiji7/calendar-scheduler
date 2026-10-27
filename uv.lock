@@ -3,6 +3,33 @@ revision = 3
 requires-python = ">=3.10"
 
 [[package]]
+name = "calendar-scheduler"
+version = "1.0.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "dateparser" },
+    { name = "icalendar" },
+    { name = "msal" },
+    { name = "python-dateutil" },
+    { name = "python-dotenv" },
+    { name = "pytz" },
+    { name = "recurring-ical-events" },
+    { name = "requests" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dateparser", specifier = "==1.2.0" },
+    { name = "icalendar", specifier = ">=6.1.0" },
+    { name = "msal", specifier = "==1.28.0" },
+    { name = "python-dateutil", specifier = "==2.9.0.post0" },
+    { name = "python-dotenv", specifier = "==1.0.0" },
+    { name = "pytz", specifier = "==2024.1" },
+    { name = "recurring-ical-events", specifier = ">=3.3.0" },
+    { name = "requests", specifier = "==2.31.0" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.5.20"
 source = { registry = "https://pypi.org/simple" }
@@ -304,33 +331,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b3/2a/76e64e6a5f0d3d12f4b3ab2cfc8b5e4fcb6982d15213aad9c8e6b20ebeae/msal-1.28.0.tar.gz", hash = "sha256:80bbabe34567cb734efd2ec1869b2d98195c927455369d8077b3c542088c5c9d", size = 130203, upload-time = "2024-03-19T06:56:27.376Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/40/41/646c00154efa437bf01b30444421285fb29ef624e86b2446e71eff50b7a9/msal-1.28.0-py3-none-any.whl", hash = "sha256:3064f80221a21cd535ad8c3fafbb3a3582cd9c7e9af0bb789ae14f726a0ca99b", size = 102150, upload-time = "2024-03-19T06:56:22.547Z" },
-]
-
-[[package]]
-name = "outlook-calendar-scheduler"
-version = "1.0.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "dateparser" },
-    { name = "icalendar" },
-    { name = "msal" },
-    { name = "python-dateutil" },
-    { name = "python-dotenv" },
-    { name = "pytz" },
-    { name = "recurring-ical-events" },
-    { name = "requests" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dateparser", specifier = "==1.2.0" },
-    { name = "icalendar", specifier = ">=6.1.0" },
-    { name = "msal", specifier = "==1.28.0" },
-    { name = "python-dateutil", specifier = "==2.9.0.post0" },
-    { name = "python-dotenv", specifier = "==1.0.0" },
-    { name = "pytz", specifier = "==2024.1" },
-    { name = "recurring-ical-events", specifier = ">=3.3.0" },
-    { name = "requests", specifier = "==2.31.0" },
 ]
 
 [[package]]

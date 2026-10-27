@@ -21,7 +21,7 @@ class SmartScheduler:
 
     def __init__(self, timezone: str = "Asia/Shanghai"):
         self.timezone = timezone
-        self.preference_path = Path(__file__).parent.parent / ".outlook_calendar_preferences.json"
+        self.preference_path = Path(__file__).parent.parent / ".calendar_preferences.json"
         self.preferences = self._load_preferences()
         self._tz = tz.gettz(self.preferences.get("time_zone", self.timezone))
 

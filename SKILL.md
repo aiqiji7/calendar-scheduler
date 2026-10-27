@@ -1,9 +1,9 @@
 ---
-name: outlook-calendar-scheduler
-description: 通过 Microsoft Graph API 或 CalDAV 管理日历日程，支持 Outlook/个人 Microsoft 账户与 QQ 邮箱等 CalDAV 账户。提供 OAuth2 或授权码认证、事件增删改查、智能排程推荐、多时区处理和用户偏好学习。用于处理已发送事件的直接写入和未来事件的排程建议。
+name: calendar-scheduler
+description: 通过 Microsoft Graph API 或 CalDAV 管理日历日程，支持 Outlook/个人 Microsoft 账户与 QQ 邮箱等 CalDAV 账户。提供 OAuth2 或授权码认证、事件增删改查、智能排程推荐、多时区处理和用户偏好学习。适用于日历排程、约会议、查看日程、检查时间冲突、QQ 邮箱日历、CalDAV 日历、Outlook 日历等场景，以及已发送事件的直接写入和未来事件的排程建议。
 ---
 
-# Outlook Calendar Scheduler
+# Calendar Scheduler
 
 ## Overview
 
@@ -42,7 +42,7 @@ graph TD
 
 ### Portable Execution
 
-Use `python run_outlook_calendar.py ...` from the skill root. The launcher locates `scripts/main.py` relative to its own file and runs with `cwd` set to the skill root, so it does not depend on a hardcoded user path. It checks `UV_BIN`, then non-interactive `PATH`, then common `uv` install locations. Set `OUTLOOK_CALENDAR_NO_UV=1` to force the cached-venv fallback. Set `OUTLOOK_CALENDAR_CACHE` to override the fallback venv cache directory. The self-test command `python run_outlook_calendar.py --launcher-self-test` performs no authentication or Microsoft Graph API calls.
+Use `python run_calendar.py ...` from the skill root. The launcher locates `scripts/main.py` relative to its own file and runs with `cwd` set to the skill root, so it does not depend on a hardcoded user path. It checks `UV_BIN`, then non-interactive `PATH`, then common `uv` install locations. Set `CALENDAR_SCHEDULER_NO_UV=1` to force the cached-venv fallback. Set `CALENDAR_SCHEDULER_CACHE` to override the fallback venv cache directory. The self-test command `python run_calendar.py --launcher-self-test` performs no authentication or Microsoft Graph API calls.
 
 ### 1. 配置认证
 
@@ -89,51 +89,51 @@ CalDAV 不跑 OAuth 流程；`auth` 命令会改为一次只读连接探针，�
 
 **认证(首次使用必需):**
 ```bash
-python run_outlook_calendar.py auth
+python run_calendar.py auth
 ```
 
 **列出所有日历:**
 ```bash
-python run_outlook_calendar.py list-calendars
+python run_calendar.py list-calendars
 ```
 
 **查询事件:**
 ```bash
-python run_outlook_calendar.py list-events --start 2025-04-21 --end 2025-04-28
+python run_calendar.py list-events --start 2025-04-21 --end 2025-04-28
 ```
 
 **直接创建事件:**
 ```bash
 # 方式1: 直接指定时间
-python run_outlook_calendar.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
+python run_calendar.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
 
 # 方式2: 自然语言描述
-python run_outlook_calendar.py create-event --text "明天下午2点开会"
+python run_calendar.py create-event --text "明天下午2点开会"
 ```
 
 **更新事件:**
 ```bash
 # 修改标题与时间
-python run_outlook_calendar.py update-event <event-id> --title "团队会议(改期)" \
+python run_calendar.py update-event <event-id> --title "团队会议(改期)" \
   --start 2025-04-23T14:00 --end 2025-04-23T15:00
 
 # 只修改地点/描述（传空字符串表示清除）
-python run_outlook_calendar.py update-event <event-id> --location "3F 会议室"
+python run_calendar.py update-event <event-id> --location "3F 会议室"
 ```
 
 **智能排程未来事件:**
 ```bash
-python run_outlook_calendar.py suggest "项目评审会" --duration 120 --days 7 --num 3
+python run_calendar.py suggest "项目评审会" --duration 120 --days 7 --num 3
 ```
 
 **删除事件:**
 ```bash
-python run_outlook_calendar.py delete-event <event-id>
+python run_calendar.py delete-event <event-id>
 ```
 
 **查看偏好状态:**
 ```bash
-python run_outlook_calendar.py status
+python run_calendar.py status
 ```
 
 ## Core Capabilities
@@ -263,7 +263,7 @@ parse_event(text: str) -> dict:
 - 学习会议时长偏好
 - 保存缓冲时间习惯
 
-存储位置: `.outlook_calendar_preferences.json`
+存储位置: `.calendar_preferences.json`
 
 ### 6. Timezone Handling (scripts/timezone_utils.py)
 
@@ -314,7 +314,7 @@ tz_handler.get_timezone_info()        # 获取时区信息
 所有 API 调用使用 UTC,本地显示时根据用户时区转换。确保 `timezone_utils.py` 正确加载时区数据。
 
 ### 排程不准确
-检查偏好学习数据文件是否存在且格式正确。可手动编辑 `.outlook_calendar_preferences.json` 重置。
+检查偏好学习数据文件是否存在且格式正确。可手动编辑 `.calendar_preferences.json` 重置。
 
 ## Advanced Usage
 

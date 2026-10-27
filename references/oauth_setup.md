@@ -6,7 +6,7 @@
 2. 搜索并进入 "Microsoft Entra ID" (或 "Azure Active Directory")
 3. 选择 "App registrations" → "New registration"
 4. 填写应用信息:
-   - **Name**: Outlook Calendar Scheduler (或自定义)
+   - **Name**: Calendar Scheduler (或自定义)
    - **Supported account types**: 选择适合的范围
      - "Accounts in this organizational directory only" (单租户)
      - "Accounts in any organizational directory" (多租户)
@@ -29,7 +29,7 @@
 
 1. 在应用详情页，选择 "Certificates & secrets"
 2. 点击 "New client secret"
-3. 描述: `outlook-scheduler` (或自定义),有效期选择合适长度
+3. 描述: `calendar-scheduler` (或自定义),有效期选择合适长度
 4. 点击 "Add"
 5. **立即复制生成的密钥值** (Value) - 这是 `AZURE_CLIENT_SECRET`
 

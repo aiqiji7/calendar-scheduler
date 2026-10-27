@@ -3,7 +3,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-Outlook Calendar Scheduler 是一个通过 Microsoft Graph API 管理 Outlook 日历的 Python 技能。支持 OAuth2 认证、事件增删改查、智能排程推荐、自然语言解析和用户偏好学习。
+Calendar Scheduler 是一个通过 Microsoft Graph API 或 CalDAV 管理日历的 Python 技能。支持 OAuth2/授权码认证、事件增删改查、智能排程推荐、自然语言解析和用户偏好学习。
 
 ## 常用命令
 
@@ -22,26 +22,26 @@ export REDIRECT_URI="http://localhost:8000/auth/microsoft/callback"
 ### 运行程序
 ```bash
 # 首次认证（必须在其他命令前执行）
-python run_outlook_calendar.py auth
+python run_calendar.py auth
 
 # 列出所有日历
-python run_outlook_calendar.py list-calendars
+python run_calendar.py list-calendars
 
 # 查询事件
-python run_outlook_calendar.py list-events --start 2025-04-21 --end 2025-04-28
+python run_calendar.py list-events --start 2025-04-21 --end 2025-04-28
 
 # 创建事件（直接写入）
-python run_outlook_calendar.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
-python run_outlook_calendar.py create-event --text "明天下午2点开会"
+python run_calendar.py create-event "团队会议" --start 2025-04-22T14:00 --end 2025-04-22T15:00
+python run_calendar.py create-event --text "明天下午2点开会"
 
 # 智能排程
-python run_outlook_calendar.py suggest "项目评审会" --duration 120 --deadline friday
+python run_calendar.py suggest "项目评审会" --duration 120 --deadline friday
 
 # 删除事件
-python run_outlook_calendar.py delete-event <event-id>
+python run_calendar.py delete-event <event-id>
 
 # 查看状态
-python run_outlook_calendar.py status
+python run_calendar.py status
 ```
 
 ### Python 直接调用
@@ -77,11 +77,11 @@ suggestions = scheduler.suggest_times(
 
 | 模块 | 职责 |
 |------|------|
-| `auth.py` | OAuth2 认证管理，使用 MSAL 库，令牌缓存在 `.outlook_calendar_token_cache.json` |
+| `auth.py` | OAuth2 认证管理，使用 MSAL 库，令牌缓存在 `.calendar_token_cache.json` |
 | `calendar_api.py` | Graph API 封装，处理 REST 请求和响应转换 |
 | `scheduler.py` | 排程算法：生成候选时间段，根据缓冲冲突、用户偏好计算适宜度分数 |
 | `nlp_parser.py` | 自然语言解析，提取时间、地点、参会者、时长等信息 |
-| `preference_learner.py` | 记录用户选择历史，学习偏好模式，存储在 `.outlook_calendar_preferences.json` 和 `.outlook_calendar_history.json` |
+| `preference_learner.py` | 记录用户选择历史，学习偏好模式，存储在 `.calendar_preferences.json` 和 `.calendar_history.json` |
 | `timezone_utils.py` | UTC/本地时区转换，夏令时处理 |
 | `main.py` | CLI 入口，包含所有子命令处理函数 |
 
@@ -114,8 +114,8 @@ suggestions = scheduler.suggest_times(
 
 ### 配置文件
 
-- 用户偏好：`.outlook_calendar_preferences.json`
-- 历史记录：`.outlook_calendar_history.json`
-- 令牌缓存：`.outlook_calendar_token_cache.json`
+- 用户偏好：`.calendar_preferences.json`
+- 历史记录：`.calendar_history.json`
+- 令牌缓存：`.calendar_token_cache.json`
 
 默认工作时间是 09:00-18:00，缓冲时间为15分钟，避开午休（12:00-14:00）。

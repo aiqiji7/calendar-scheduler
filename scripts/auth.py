@@ -11,12 +11,12 @@ from pathlib import Path
 from typing import Optional, Dict
 
 # 前置声明
-_instance: Optional['OutlookAuth'] = None
+_instance: Optional['CalendarAuth'] = None
 from msal import ConfidentialClientApplication, SerializableTokenCache
 
 
-class OutlookAuth:
-    """Outlook Calendar OAuth2 认证管理"""
+class CalendarAuth:
+    """Calendar OAuth2 认证管理"""
 
     def __init__(self):
         self.client_id = os.getenv("AZURE_CLIENT_ID")
@@ -42,7 +42,7 @@ class OutlookAuth:
         # 注意: offline_access 权限由 MSAL 自动处理，不需要显式声明
 
         # 令牌缓存文件（存放在项目目录下）
-        self.token_cache_path = Path(__file__).parent.parent / ".outlook_calendar_token_cache.json"
+        self.token_cache_path = Path(__file__).parent.parent / ".calendar_token_cache.json"
         self.token_cache = SerializableTokenCache()
         self._load_token_cache()
 
@@ -122,11 +122,11 @@ class OutlookAuth:
         self.token_cache = SerializableTokenCache()
 
 
-def get_auth_manager() -> 'OutlookAuth':
+def get_auth_manager() -> 'CalendarAuth':
     """获取认证管理器实例（延迟初始化）"""
     global _instance
     if _instance is None:
-        _instance = OutlookAuth()
+        _instance = CalendarAuth()
     return _instance
 
 

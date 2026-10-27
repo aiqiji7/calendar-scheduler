@@ -71,7 +71,7 @@ class CalDAVSession:
         self.session.auth = HTTPBasicAuth(username, password)
         self.session.headers.update(
             {
-                "User-Agent": "outlook-calendar-scheduler/1.0",
+                "User-Agent": "calendar-scheduler/1.0",
                 "Content-Type": 'application/xml; charset="utf-8"',
             }
         )

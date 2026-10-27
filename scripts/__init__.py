@@ -1,5 +1,5 @@
 """
-Outlook Calendar Scheduler - 核心模块
+Calendar Scheduler - 核心模块
 
 自动加载环境变量配置，确保所有子模块都能访问 Azure 认证信息。
 """

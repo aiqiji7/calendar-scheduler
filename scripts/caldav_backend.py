@@ -545,7 +545,7 @@ class CalDAVBackend:
         target_url = resource_url(collection, uid)
 
         cal = icalendar.Calendar()
-        cal.add("prodid", "-//outlook-calendar-scheduler//CalDAV//CN")
+        cal.add("prodid", "-//calendar-scheduler//CalDAV//CN")
         cal.add("version", "2.0")
 
         event = icalendar.Event()
